@@ -7,29 +7,38 @@ import java.util.Arrays;
 
 import com.github.kilianB.model.netflix.NetflixShowEpisode;
 import com.uwetrottmann.trakt5.entities.Show;
-
 /**
- * Rudimentary synchronized CSV writer accepting Show objects to be written to a CSV file 
+ * A synchronized CSV writer for TV show data.
  * 
- * @author Kilian
+ * This class extends the CSVWriter class and provides a method to push TV show data to a CSV file.
+ * 
+ * @author shadhin
  */
 public class CSVShowWriter extends CSVWriter{
 	
+	/**
+	 * Constructs a CSVShowWriter instance.
+	 * 
+	 * @param csvOutPath The path to the CSV file.
+	 * @param delimiter  The CSV field delimiter.
+	 * @throws IOException if an IO error occurs during file operations.
+	 */
 	public CSVShowWriter(File csvOutPath, String delimiter) throws IOException {
 		super(csvOutPath, delimiter,"Date","Series","Title","Season","Runtime","Certificate","FirstAired","Network","Genres");
 	}
 	
 	/**
-	 * Output date format of the first aired date
+	 * Output date format of the first aired date.
 	 */
 	private static DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 	
 	/**
-	 * Append the data to the end of the csv file in a synchronized manner.
-	 * @param show	A show object received by trakt
-	 * @param netflixShow	A matching object parsed from the viewfile.csv
-	 * @param runtime	The runtime of the episode
-	 * @throws IOException if an IO Error occurs
+	 * Append TV show data to the end of the CSV file in a synchronized manner.
+	 * 
+	 * @param show         A Show object received from Trakt.
+	 * @param netflixShow  A matching object parsed from the viewfile.csv.
+	 * @param runtime      The runtime of the episode.
+	 * @throws IOException if an IO error occurs during file operations.
 	 */
 	public void push(Show show, NetflixShowEpisode netflixShow, int runtime) throws IOException {
 		
@@ -54,7 +63,4 @@ public class CSVShowWriter extends CSVWriter{
 				show.network,
 				genres);
 	}
-	
-	
-	
 }
