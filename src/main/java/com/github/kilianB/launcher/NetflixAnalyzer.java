@@ -41,25 +41,29 @@ import com.uwetrottmann.trakt5.enums.Type;
 import trakt.TraktHelper;
 
 /**
- * Download and append detailed information to a Netflix viewing history file e.g. runtime
+ * Download and append detailed information to a Netflix viewing history file
+ * e.g. runtime
  * and genre for further evaluation.
  * <p>
  * 
- * The code is in no way optimized but rather a practice project focuses on utilizing some of Java 8-10
+ * The code is in no way optimized but rather a practice project focuses on
+ * utilizing some of Java 8-10
  * features.
  * 
- * JAVA 8 Method reference :: Predicates 
- * JAVA 9 streams + lambda 
- * JAVA 10: local  * type inference
+ * JAVA 8 Method reference :: Predicates
+ * JAVA 9 streams + lambda
+ * JAVA 10: local * type inference
  * 
- * The input csv file will be parsed and individual items will either be classified as an 
- * episode (show), a movie or of type unknown. For each type a separate csv file with additional
+ * The input csv file will be parsed and individual items will either be
+ * classified as an
+ * episode (show), a movie or of type unknown. For each type a separate csv file
+ * with additional
  * information will be produced
  * 
  * @usage -> java -jar NetflixAnalyzer InputFilePath.csv TraktApiKey
- * 		  -> java -jar NetflixAnalyzer TraktApiKey
+ *        -> java -jar NetflixAnalyzer TraktApiKey
  * 
- * @author Kilian
+ * @author md-shadhin
  *
  */
 public class NetflixAnalyzer {
@@ -77,42 +81,41 @@ public class NetflixAnalyzer {
 	 * Output path of csv file containing all items classified as movie
 	 */
 	private final String movieCsv = "MovieViewingHistory.csv";
-	
+
 	/**
 	 * Output path of csv file containing all items classified as episode
 	 */
 	private final String showCsv = "ShowViewingHistory.csv";
-	
+
 	/**
 	 * Output path of csv file containing all items which could not be resolved
 	 */
 	private final String unknownCsv = "UnknownViewingHistory.csv";
 
-	
-	//Fields
-	
+	// Fields
+
 	/**
 	 * Trakt client used to query the movie database
 	 */
 	private TraktHelper trakt;
 
 	/**
-	 * Key : ->  Series name as found in the netflix viewing history file 
+	 * Key : -> Series name as found in the netflix viewing history file
 	 * Value: -> Show object returned by trakt (Overview: Genre, rating, ids)
 	 */
 	private Map<String, Show> traktShows;
 
 	/**
-	 * Key : ->  Movie name as found in the netflix viewing history file 
+	 * Key : -> Movie name as found in the netflix viewing history file
 	 * Value: -> Movie object returned by trakt
 	 */
 	private Map<NetflixMovie, Movie> traktMovies;
 
 	/**
-	 * 1. Parse the Netflix viewing csv file -> (Title,Date) 
-	 * 2. Query trakt API to attach id's to the movie/series title. 
-	 * 	a) Movies are done. more work for episodes are required
-	 * 3. Download summary of the series to get the episode id's 
+	 * 1. Parse the Netflix viewing csv file -> (Title,Date)
+	 * 2. Query trakt API to attach id's to the movie/series title.
+	 * a) Movies are done. more work for episodes are required
+	 * 3. Download summary of the series to get the episode id's
 	 * 4. Use the episode ids and download granular information for each item
 	 * 5. Match trakt and netflix titles using levenshtein distance
 	 * 6. Output results to csv
@@ -121,7 +124,7 @@ public class NetflixAnalyzer {
 	 * @param traktToken
 	 */
 	public NetflixAnalyzer(String viewFilePath, String traktToken) {
-		
+
 		/*
 		 * Initialize trakt api movie database
 		 */
@@ -220,38 +223,39 @@ public class NetflixAnalyzer {
 			 * 
 			 */
 			ExecutorService executor = Executors.newFixedThreadPool(15,
-					(Runnable r)->{
+					(Runnable r) -> {
 						Thread t = new Thread(r);
 						t.setName("T-Pool:");
 						t.setUncaughtExceptionHandler(new UncaughtExceptionHandler() {
 							@Override
 							public void uncaughtException(Thread t, Throwable e) {
-								System.out.println("Uncaught exception: "  + t + " " + e.toString());
+								System.out.println("Uncaught exception: " + t + " " + e.toString());
 							}
-							
+
 						});
 						return new Thread(r);
-					}
-			);
-			
+					});
+
 			System.out.println("Retrieve runtime for shows. This may take a few seconds...");
-			
+
 			var futures = new ArrayList<Future<?>>();
-			
+
 			/*
-			 * Variables modified in runnables have to be effective final. Circumvent this issue
-			 * by encapsulating the int in an object. Atomic integers also give us thread safety 
+			 * Variables modified in runnables have to be effective final. Circumvent this
+			 * issue
+			 * by encapsulating the int in an object. Atomic integers also give us thread
+			 * safety
 			 * for free.
 			 */
 			AtomicInteger knownEpisodeCount = new AtomicInteger(0);
 			AtomicInteger unknownCount = new AtomicInteger(0);
-			
+
 			/*
-			 * Construct the tasks of writing the individual data to a csv file. 
-			 * For shows runtime data still has to be downloaded on a per episode basis 
+			 * Construct the tasks of writing the individual data to a csv file.
+			 * For shows runtime data still has to be downloaded on a per episode basis
 			 */
 			for (var viewItem : parsedHistory) {
-				//Not the nicest use of anonymous classes but keep it for now...
+				// Not the nicest use of anonymous classes but keep it for now...
 				var future = executor.submit(new Runnable() {
 					ViewItem viewItem;
 
@@ -276,7 +280,7 @@ public class NetflixAnalyzer {
 									showWriter.push(show, netflixShow, runtime);
 									knownEpisodeCount.incrementAndGet();
 								}
-								
+
 								// Output to csv
 							} else {
 								// Movie
@@ -294,73 +298,76 @@ public class NetflixAnalyzer {
 							LOGGER.severe("Error during output file creation: " + e.getMessage());
 						}
 					}
-					
-					//Inject value into anonymous class ...
+
+					// Inject value into anonymous class ...
 					public Runnable setViewItem(ViewItem viewItem) {
 						this.viewItem = viewItem;
 						return this;
 					}
 
 				}.setViewItem(viewItem));
-				
+
 				futures.add(future);
 			}
-			
-			//Wait for all threads to return
-//			for(var future : futures) {
-//				try {
-//					future.get();
-//				} catch (InterruptedException | ExecutionException e) {
-//					e.printStackTrace();
-//				}
-//			}
-			
+
+			// Wait for all threads to return
+			// for(var future : futures) {
+			// try {
+			// future.get();
+			// } catch (InterruptedException | ExecutionException e) {
+			// e.printStackTrace();
+			// }
+			// }
+
 			try {
 				executor.shutdown();
 				executor.awaitTermination(30, TimeUnit.SECONDS);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-			//Close writer	//TODO move in finally?
+			// Close writer //TODO move in finally?
 			showWriter.close();
 			movieWriter.close();
 			unknowWriter.close();
-			
-			//dumpActiveNonDeamonThreads("After Shutdown");
-			
-			//Print some information
-	
-			int charLength = (int)Math.log10(parsedHistory.size())+1;
-			
+
+			// dumpActiveNonDeamonThreads("After Shutdown");
+
+			// Print some information
+
+			int charLength = (int) Math.log10(parsedHistory.size()) + 1;
+
 			System.out.printf(
 					"%nFinished:%n-----------------------------------------%n"
-					+ "%14s %"+charLength+"d%n%14s %"+charLength+"d%n%14s %"+charLength+"d%n"
-							+ "%14s %"+charLength+"d%n%14s %"+charLength+"d%n",
-					"Items parsed:",parsedHistory.size(),"Unique shows:", traktShows.size(),
-					"Episodes:", knownEpisodeCount.get(),"Movies:", traktMovies.size(),
-					"Unknown:",unknownCount.get());
+							+ "%14s %" + charLength + "d%n%14s %" + charLength + "d%n%14s %" + charLength + "d%n"
+							+ "%14s %" + charLength + "d%n%14s %" + charLength + "d%n",
+					"Items parsed:", parsedHistory.size(), "Unique shows:", traktShows.size(),
+					"Episodes:", knownEpisodeCount.get(), "Movies:", traktMovies.size(),
+					"Unknown:", unknownCount.get());
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 
-		//Print some 
-		
-		
-		/*The trakt2 api depends on okttp which releases it's ressources after some idle time.
-		 * We don't want to wait so long and trakt doesn't expose the client therefore force
+		// Print some
+
+		/*
+		 * The trakt2 api depends on okttp which releases it's ressources after some
+		 * idle time.
+		 * We don't want to wait so long and trakt doesn't expose the client therefore
+		 * force
 		 * all threads to shut down at this point
 		 */
 		System.exit(0);
-		
-		
+
 	}
 
 	/**
-	 * A predicate used to retrieve unique values present in a collection based on an arbitrary 
+	 * A predicate used to retrieve unique values present in a collection based on
+	 * an arbitrary
 	 * filter value
 	 * 
 	 * @param func function executed to retrieve the filter key from the object
-	 * @return a map containing all elements which are present in the collection without duplicates
+	 * @return a map containing all elements which are present in the collection
+	 *         without duplicates
 	 */
 	public Predicate<ViewItem> distinctObjects(Function<? super ViewItem, Object> func) {
 		var map = new HashSet<Object>();
@@ -389,12 +396,12 @@ public class NetflixAnalyzer {
 
 		List<Season> seasons = seasonList.get(traktShow);
 
-//		System.out.println("Netflix Show: " + show + "\nTrakt: " + traktShow + "\nSeasons: " + seasons
-//				+ "\nSeasonNumber: " + seasonNumber);
+		// System.out.println("Netflix Show: " + show + "\nTrakt: " + traktShow +
+		// "\nSeasons: " + seasons
+		// + "\nSeasonNumber: " + seasonNumber);
 
 		// Get the correct Season
 		Optional<Season> seasonTemp = seasons.stream().filter(s -> s.number == seasonNumber).findAny();
-
 
 		if (!seasonTemp.isPresent()) {
 			LOGGER.warning("Could not find season of " + seriesName + "(" + seasonNumber + "). Fallback to "
@@ -460,7 +467,7 @@ public class NetflixAnalyzer {
 	 * provided by netflix. Therefore allow search through all episode titles of a
 	 * season and pick the closest candidate.
 	 * 
-	 * @author Kilian
+	 * @author md-shadhin
 	 *
 	 */
 	class EpisodeTitleSearchResult implements Comparable<EpisodeTitleSearchResult> {
@@ -481,7 +488,7 @@ public class NetflixAnalyzer {
 
 	public static void main(String[] args) {
 
-		//Set logging format
+		// Set logging format
 		System.setProperty("Djava.util.logging.SimpleFormatter.format",
 				"%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS %4$-6s %2$s %5$s%6$s%n");
 
@@ -489,18 +496,18 @@ public class NetflixAnalyzer {
 		if (args.length >= 2 && args[0].endsWith(".csv") && args[1].length() == 64) {
 			// Trakt token is sha 256 encrypted? -> 64 characters
 			new NetflixAnalyzer(args[0], args[1]);
-		} else if(args.length == 1){
-			if(args[0].length() == 64) {
+		} else if (args.length == 1) {
+			if (args[0].length() == 64) {
 				System.err.println("No input file path specified. Falback to default "
 						+ "NetflixViewingHistory.csv in current directory");
 				new NetflixAnalyzer("NetflixViewingHistory.csv", args[0]);
-			}else {
+			} else {
 				System.err.println("The supplied trakt key does not have the correct length to be "
 						+ "a valid key");
 				System.err.println("Aborting");
 			}
-			
-		}else {
+
+		} else {
 			System.err.println("Usage:\n"
 					+ "\tjava -jar NetflixAnalyzer PATH_TO_VIEWHISTORYFILE.csv traktClientID\n"
 					+ "\tjava -jar NetflixAnalyzer traktClientID");
@@ -508,19 +515,18 @@ public class NetflixAnalyzer {
 		}
 	}
 
-	
-	
 	/**
 	 * Debug function used to check which threads prevent the jvm from exiting
 	 * In production we would not use strack traces as these are rather expensive
+	 * 
 	 * @param message
 	 */
 	@SuppressWarnings("unused")
 	private void dumpActiveNonDeamonThreads(String message) {
 		System.out.println(message);
 		Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
-		for(Thread t : threadSet) {
-			if(!t.isDaemon())
+		for (Thread t : threadSet) {
+			if (!t.isDaemon())
 				System.out.println(t);
 		}
 	}
